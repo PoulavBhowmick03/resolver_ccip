@@ -2,12 +2,15 @@
 mod Resolver {
     use core::option::OptionTrait;
     use core::traits::TryInto;
-    use core::array::SpanTrait;
     use starknet::{ContractAddress, get_block_timestamp};
     use ecdsa::check_ecdsa_signature;
     use resolver::interface::resolver::{IResolver, IResolverDispatcher, IResolverDispatcherTrait};
     use storage_read::{main::storage_read_component, interface::IStorageRead};
     use openzeppelin::access::ownable::OwnableComponent;
+    use core::starknet::storage::{
+        StoragePointerReadAccess, StoragePointerWriteAccess, 
+        Map, StoragePathEntry
+    };
 
     component!(path: storage_read_component, storage: storage_read, event: StorageReadEvent);
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
@@ -21,7 +24,7 @@ mod Resolver {
     #[storage]
     struct Storage {
         public_key: felt252,
-        uri: LegacyMap<(felt252, felt252), felt252>,
+        uri: Map<(felt252, felt252), felt252>,
         #[substorage(v0)]
         storage_read: storage_read_component::Storage,
         #[substorage(v0)]
@@ -51,7 +54,7 @@ mod Resolver {
         self.public_key.write(_public_key);
     }
 
-    #[external(v0)]
+    #[abi(embed_v0)]
     impl ResolverImpl of IResolver<ContractState> {
         fn resolve(
             self: @ContractState, domain: Span<felt252>, field: felt252, hint: Span<felt252>
@@ -127,8 +130,8 @@ mod Resolver {
 
         fn remove_uri(ref self: ContractState, index: felt252) {
             self.ownable.assert_only_owner();
-            let uri_removed = self.get_uri_at_index(index).span();
-            self.emit(StarknetIDOffChainResolverUpdate { uri_added: array![].span(), uri_removed });
+            let uri_removed = self.get_uri_at_index(index);
+            self.emit(StarknetIDOffChainResolverUpdate { uri_added: array![].span(), uri_removed: uri_removed.span() });
             self.uri.write((index, 0), 'this call was removed');
         }
     }
